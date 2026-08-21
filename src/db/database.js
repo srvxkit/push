@@ -1,115 +1,17 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Adapter to unify node:sqlite (Node 22+), better-sqlite3, sqlite3, or pure JS file storage
 function createDatabase(dbPath = ':memory:') {
-  if (dbPath !== ':memory:') {
-    const dir = path.dirname(dbPath);
+  const jsonFilePath = dbPath !== ':memory:'
+    ? (dbPath.endsWith('.json') ? dbPath : dbPath.replace(/\.[^/.]+$/, '') + '.json')
+    : null;
+
+  if (jsonFilePath) {
+    const dir = path.dirname(jsonFilePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
   }
-
-  let dbAdapter;
-
-  // Option 1: Try built-in node:sqlite (Node v22.5+)
-  try {
-    const { DatabaseSync } = require('node:sqlite');
-    const db = new DatabaseSync(dbPath);
-    dbAdapter = {
-      pragma(str) {
-        try { db.exec(`PRAGMA ${str}`); } catch (e) {}
-      },
-      exec(sql) {
-        db.exec(sql);
-      },
-      prepare(sql) {
-        const stmt = db.prepare(sql);
-        return {
-          run(...params) {
-            return stmt.run(...params);
-          },
-          get(...params) {
-            return stmt.get(...params);
-          },
-          all(...params) {
-            return stmt.all(...params);
-          }
-        };
-      },
-      close() {
-        db.close();
-      }
-    };
-  } catch (err1) {
-    // Option 2A: Try better-sqlite3 package if installed
-    try {
-      const Database = require('better-sqlite3');
-      const db = new Database(dbPath);
-      db.pragma('foreign_keys = ON');
-      dbAdapter = db;
-    } catch (err2) {
-      // Option 2B: Try sqlite3 package if installed
-      try {
-        const sqlite3 = require('sqlite3');
-        const db = new sqlite3.Database(dbPath);
-        dbAdapter = createSqlite3Wrapper(db);
-      } catch (err3) {
-        // Option 3: Pure JS file-backed storage engine for Node 20 & environments without native addons
-        dbAdapter = createFallbackStorageAdapter(dbPath);
-      }
-    }
-  }
-
-  // Execute initial migrations
-  const migrationPath = path.resolve(__dirname, '../../storage/migrations/001_initial_schema.sql');
-  if (fs.existsSync(migrationPath)) {
-    const migrationSql = fs.readFileSync(migrationPath, 'utf8');
-    dbAdapter.exec(migrationSql);
-  }
-
-  return dbAdapter;
-}
-
-// Wrapper for sqlite3 npm package if installed
-function createSqlite3Wrapper(db) {
-  db.run('PRAGMA foreign_keys = ON');
-  return {
-    pragma(str) {
-      try { db.run(`PRAGMA ${str}`); } catch (e) {}
-    },
-    exec(sql) {
-      db.exec(sql);
-    },
-    prepare(sql) {
-      return {
-        run(...params) {
-          db.run(sql, params);
-          return { changes: 1 };
-        },
-        get(...params) {
-          let result;
-          db.get(sql, params, (err, row) => { result = row; });
-          return result;
-        },
-        all(...params) {
-          let results = [];
-          db.all(sql, params, (err, rows) => { results = rows || []; });
-          return results;
-        }
-      };
-    },
-    close() {
-      db.close();
-    }
-  };
-}
-
-// Pure JS file-backed database storage engine for legacy/restricted Node environments (Node v20.x, etc.)
-function createFallbackStorageAdapter(dbPath) {
-  const jsonFilePath = dbPath !== ':memory:'
-    ? (dbPath.endsWith('.db') ? dbPath.slice(0, -3) + '.json' : dbPath + '.json')
-    : null;
 
   const tables = {
     applications: new Map(),
@@ -118,7 +20,7 @@ function createFallbackStorageAdapter(dbPath) {
     notification_deliveries: new Map()
   };
 
-  // Load existing data from file if present
+  // Load existing data from JSON file if present
   if (jsonFilePath && fs.existsSync(jsonFilePath)) {
     try {
       const raw = fs.readFileSync(jsonFilePath, 'utf8');
@@ -145,7 +47,9 @@ function createFallbackStorageAdapter(dbPath) {
   return {
     pragma() {},
     exec(sql) {},
-    close() { saveToFile(); },
+    close() {
+      saveToFile();
+    },
     prepare(sql) {
       const normalizedSql = sql.replace(/\s+/g, ' ').trim();
 
