@@ -22,7 +22,7 @@ function loadEnv() {
     PORT: port,
     HOST: process.env.HOST || '0.0.0.0',
     NODE_ENV: process.env.NODE_ENV || 'production',
-    DATABASE_PATH: process.env.DATABASE_PATH || './storage/push_server.json',
+    DATABASE_PATH: process.env.DATABASE_PATH || './storage/data.json',
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
     VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'mailto:admin@example.com',

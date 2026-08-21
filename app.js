@@ -1,6 +1,6 @@
-/**
- * Entry point for cPanel Node.js Selector / Phusion Passenger
- */
-const { main } = require('./src/index');
+const Server = require('./server');
 
-main();
+const server = new Server();
+server.start();
+
+module.exports = server;

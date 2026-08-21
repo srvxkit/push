@@ -1,11 +1,9 @@
-const { AppError, NotFoundError } = require('../errors/AppError');
+const { NotFoundError, AppError } = require('../errors/AppError');
 
 class Router {
-  constructor({ healthController, subscriptionController, presenceController, notificationController, dashboardController, env = {} }) {
+  constructor({ healthController, webhookController, dashboardController, env = {} }) {
     this.healthController = healthController;
-    this.subscriptionController = subscriptionController;
-    this.presenceController = presenceController;
-    this.notificationController = notificationController;
+    this.webhookController = webhookController;
     this.dashboardController = dashboardController;
     this.env = env;
   }
@@ -25,11 +23,12 @@ class Router {
     }
 
     try {
+      // 1. Public Health Route
       if (method === 'GET' && pathname === '/health') {
         return await this.healthController.getHealth(req, res);
       }
 
-      // Conditional Dashboard UI & Telemetry routes
+      // 2. Public Dashboard UI & Telemetry Stats (if enabled)
       if (this.env.DASHBOARD_ENABLED) {
         const dashboardPath = (this.env.DASHBOARD_PATH || '/dashboard').replace(/\/$/, '');
         const normalizedPath = pathname.replace(/\/$/, '');
@@ -43,35 +42,9 @@ class Router {
         }
       }
 
-      if (method === 'GET' && pathname === '/v1/subscriptions') {
-        const queryParams = {
-          owner_type: url.searchParams.get('owner_type'),
-          owner_id: url.searchParams.get('owner_id')
-        };
-        return await this.subscriptionController.list(req, res, queryParams);
-      }
-
-      if (method === 'POST' && pathname === '/v1/subscriptions') {
-        return await this.subscriptionController.create(req, res);
-      }
-
-      if (method === 'DELETE' && pathname.startsWith('/v1/subscriptions/')) {
-        const id = pathname.substring('/v1/subscriptions/'.length);
-        if (id) {
-          return await this.subscriptionController.remove(req, res, { id });
-        }
-      }
-
-      if (method === 'POST' && pathname === '/v1/presence/heartbeat') {
-        return await this.presenceController.heartbeat(req, res);
-      }
-
-      if (method === 'POST' && pathname === '/v1/presence/logout') {
-        return await this.presenceController.logout(req, res);
-      }
-
-      if (method === 'POST' && pathname === '/v1/notifications/send') {
-        return await this.notificationController.send(req, res);
+      // 3. Protected CI4 Notification Webhook Endpoints
+      if (method === 'POST' && (pathname === '/v1/notifications/send' || pathname === '/webhook/send')) {
+        return await this.webhookController.send(req, res);
       }
 
       throw new NotFoundError(`Endpoint ${method} ${pathname} not found`);
@@ -84,7 +57,7 @@ class Router {
     const origin = req.headers.origin || '*';
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Application-Key');
     res.setHeader('Access-Control-Max-Age', '86400');
   }
 
@@ -99,10 +72,9 @@ class Router {
 
     res.writeHead(statusCode, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      error: {
-        code: errorCode,
-        message
-      }
+      success: false,
+      error: errorCode,
+      message
     }));
   }
 }

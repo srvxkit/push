@@ -1,16 +1,14 @@
 {
   "name": "srvkit-node-push",
-  "version": "1.2.0",
-  "description": "Centralized Web Push Notification Server",
+  "version": "2.1.0",
+  "description": "Stateless Web Push Server for CodeIgniter 4",
   "main": "app.js",
   "type": "commonjs",
   "scripts": {
     "start": "node app.js",
-    "worker": "node worker/notification-worker.js",
     "test": "node tests/run.js",
     "app": "node scripts/app.js",
-    "generate": "node scripts/generate.js",
-    "subscriptions": "node scripts/subscriptions.js"
+    "generate": "node scripts/generate.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
