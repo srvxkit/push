@@ -1,0 +1,34 @@
+# Auto-detect text files and normalize line endings to LF
+* text=auto
+
+# Source code & configuration files (LF)
+*.js text eol=lf
+*.json text eol=lf
+*.sql text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.example text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Windows Batch / Command scripts (CRLF)
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files
+*.db binary
+*.sqlite binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Exclude non-production docs, agent rules, and plans from deployment exports (git archive)
+.agents/ export-ignore
+AGENTS.md export-ignore
+implementation_plan.md export-ignore
+walkthrough.md export-ignore
+tests/ export-ignore
