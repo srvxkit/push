@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Adapter to unify node:sqlite (Node 22+), better-sqlite3, or pure JS file storage
+// Adapter to unify node:sqlite (Node 22+), better-sqlite3, sqlite3, or pure JS file storage
 function createDatabase(dbPath = ':memory:') {
   if (dbPath !== ':memory:') {
     const dir = path.dirname(dbPath);
@@ -42,15 +42,22 @@ function createDatabase(dbPath = ':memory:') {
       }
     };
   } catch (err1) {
-    // Option 2: Try better-sqlite3 package if compiled
+    // Option 2A: Try better-sqlite3 package if installed
     try {
       const Database = require('better-sqlite3');
       const db = new Database(dbPath);
       db.pragma('foreign_keys = ON');
       dbAdapter = db;
     } catch (err2) {
-      // Option 3: Pure JS file-backed storage engine for Node 20 & environments without native addons
-      dbAdapter = createFallbackStorageAdapter(dbPath);
+      // Option 2B: Try sqlite3 package if installed
+      try {
+        const sqlite3 = require('sqlite3');
+        const db = new sqlite3.Database(dbPath);
+        dbAdapter = createSqlite3Wrapper(db);
+      } catch (err3) {
+        // Option 3: Pure JS file-backed storage engine for Node 20 & environments without native addons
+        dbAdapter = createFallbackStorageAdapter(dbPath);
+      }
     }
   }
 
@@ -62,6 +69,40 @@ function createDatabase(dbPath = ':memory:') {
   }
 
   return dbAdapter;
+}
+
+// Wrapper for sqlite3 npm package if installed
+function createSqlite3Wrapper(db) {
+  db.run('PRAGMA foreign_keys = ON');
+  return {
+    pragma(str) {
+      try { db.run(`PRAGMA ${str}`); } catch (e) {}
+    },
+    exec(sql) {
+      db.exec(sql);
+    },
+    prepare(sql) {
+      return {
+        run(...params) {
+          db.run(sql, params);
+          return { changes: 1 };
+        },
+        get(...params) {
+          let result;
+          db.get(sql, params, (err, row) => { result = row; });
+          return result;
+        },
+        all(...params) {
+          let results = [];
+          db.all(sql, params, (err, rows) => { results = rows || []; });
+          return results;
+        }
+      };
+    },
+    close() {
+      db.close();
+    }
+  };
 }
 
 // Pure JS file-backed database storage engine for legacy/restricted Node environments (Node v20.x, etc.)
