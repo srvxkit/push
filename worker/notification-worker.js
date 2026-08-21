@@ -127,18 +127,38 @@ if (require.main === module) {
     maxRetries: env.MAX_RETRIES
   });
 
-  worker.start();
-  console.log('[Worker] Notification delivery worker started.');
+  const isOnce = process.argv.includes('--once');
 
-  const shutdown = async () => {
-    console.log('[Worker] Shutting down worker...');
-    await worker.stop();
-    db.close();
-    process.exit(0);
-  };
+  if (isOnce) {
+    (async () => {
+      console.log('[Worker] Running worker in single-pass cron mode...');
+      deliveryRepository.resetProcessingToPending();
+      let totalProcessed = 0;
+      let batchCount = 0;
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+      do {
+        batchCount = await worker.processBatch(50);
+        totalProcessed += batchCount;
+      } while (batchCount > 0);
+
+      db.close();
+      console.log(`[Worker] Cron job completed. Processed ${totalProcessed} delivery job(s).`);
+      process.exit(0);
+    })();
+  } else {
+    worker.start();
+    console.log('[Worker] Notification delivery worker started in continuous polling mode.');
+
+    const shutdown = async () => {
+      console.log('[Worker] Shutting down worker...');
+      await worker.stop();
+      db.close();
+      process.exit(0);
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+  }
 }
 
 module.exports = NotificationWorker;

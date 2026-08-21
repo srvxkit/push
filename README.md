@@ -8,7 +8,7 @@ The server receives notification requests from application servers (such as `api
 
 ## Key Features
 
-- **Minimal Dependency Policy**: Built exclusively with Node.js built-in core modules (`node:http`, `node:sqlite`, `node:crypto`, `node:fs`, etc.) and only two approved external packages: `web-push` and `dotenv`.
+- **Minimal Dependency Policy**: Built exclusively with Node.js built-in core modules (`node:http`, `node:crypto`, `node:fs`, etc.) and only two approved external packages: `web-push` and `dotenv`.
 - **Application-Agnostic Architecture**: Understands only applications, owners, subscriptions, presence, notifications, and deliveries without application-specific business domain concepts.
 - **Strict Admin Notification Rule**: Admins receive notifications only when they possess an **active subscription** AND an **active logged-in session presence**. If an admin logs out, notifications are withheld until they log back in.
 - **Multi-Device User Targeting**: Supports multiple subscribed devices per user, delivering notifications across all active registered subscriptions.
@@ -27,7 +27,7 @@ app.js                    # Root entry point for cPanel Node.js Selector & Passe
 src/
 ├── auth/                 # Application Bearer token authentication & hashing
 ├── config/               # Environment loader (dotenv)
-├── db/                   # SQLite database connection & initial migration execution
+├── db/                   # Simple JSON file database connection (push_server.json)
 ├── errors/               # Standardized API error format & status codes
 ├── http/
 │   ├── controllers/      # Health, Subscription, Presence, Notification, Dashboard controllers
@@ -37,7 +37,7 @@ src/
 ├── notifications/        # Target resolution & Admin presence rule enforcement
 ├── presence/             # Active session heartbeat & logout management
 ├── push/                 # WebPushService wrapping web-push
-├── repositories/         # Database persistence (Applications, Subscriptions, Presence, Deliveries)
+├── repositories/         # Direct JSON Data Persistence (Applications, Subscriptions, Presence, Deliveries)
 ├── subscriptions/        # Subscription registration & management
 └── index.js              # Application HTTP server entry point
 
@@ -47,10 +47,13 @@ scripts/
 └── subscriptions.js      # CLI tool to list registered subscriptions
 
 worker/
-└── notification-worker.js # Background delivery worker process
+└── notification-worker.js # Background delivery worker process (daemon or single-pass cron)
+
+public/
+└── dashboard.html        # Telemetry dashboard UI template
 
 storage/
-└── migrations/           # DDL SQL migration scripts
+└── push_server.json      # Simple human-readable JSON storage file
 
 tests/
 ├── auth/                 # Authentication tests
@@ -72,7 +75,7 @@ Copy `.env.example` to `.env` and configure your settings:
 PORT=3000
 HOST=0.0.0.0
 NODE_ENV=production
-DATABASE_PATH=./storage/push_server.db
+DATABASE_PATH=./storage/push_server.json
 
 # Web Push VAPID Configuration
 VAPID_PUBLIC_KEY=your_vapid_public_key
@@ -87,6 +90,40 @@ MAX_RETRIES=3
 # Dashboard UI (Optional)
 DASHBOARD_ENABLED=true
 DASHBOARD_PATH=/dashboard
+```
+
+---
+
+## Setting Up Cron Job for Delivery Worker
+
+The notification delivery worker can run in two modes:
+
+### Mode A: Single-Pass Cron Mode (`--once`)
+Runs a single batch execution to process all pending delivery jobs and exits. Ideal for cPanel Cron Jobs or Linux crontab.
+
+#### 1. Setting up in cPanel Cron Jobs:
+1. Open **cPanel** -> **Cron Jobs**.
+2. **Common Settings**: Choose `Every Minute` (`* * * * *`).
+3. **Command**:
+   ```bash
+   /usr/local/bin/node /home/username/push-server/worker/notification-worker.js --once >> /home/username/push-server/worker.log 2>&1
+   ```
+   *(Replace `/home/username/push-server` with your actual project directory path).*
+
+#### 2. Setting up in Linux crontab:
+Run `crontab -e` and add:
+```bash
+* * * * * cd /var/www/push-server && /usr/bin/node worker/notification-worker.js --once >> /var/www/push-server/worker.log 2>&1
+```
+
+---
+
+### Mode B: Continuous Daemon Process (Instant Push Delivery)
+For real-time instant notification processing without waiting for 1-minute cron intervals:
+
+Using **PM2**:
+```bash
+pm2 start worker/notification-worker.js --name "push-worker"
 ```
 
 ---
