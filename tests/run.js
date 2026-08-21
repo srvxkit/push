@@ -6,6 +6,7 @@ const testUserTargeting = require('./notifications/user_targeting.test');
 const testWorker = require('./worker/worker.test');
 const testCors = require('./http/cors.test');
 const testDashboard = require('./http/dashboard.test');
+const testFallbackAdapter = require('./db/fallback.test');
 
 async function runAllTests() {
   console.log('==================================================');
@@ -20,6 +21,7 @@ async function runAllTests() {
     testUserTargeting();
     await testCors();
     await testDashboard();
+    testFallbackAdapter();
     await testWorker();
 
     console.log('\n--------------------------------------------------');

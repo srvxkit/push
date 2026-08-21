@@ -9,16 +9,20 @@ function loadEnv() {
     isLoaded = true;
   }
 
+  const rawPort = process.env.PORT;
+  // Handle cPanel Passenger socket string 'passenger' or numeric port
+  const port = (rawPort && !isNaN(rawPort)) ? parseInt(rawPort, 10) : (rawPort || 3000);
+
   const rawDashboardEnabled = process.env.DASHBOARD_ENABLED;
   const dashboardEnabled = rawDashboardEnabled === undefined
-    ? true // Default to enabled if not set
+    ? true
     : ['true', '1', 'yes'].includes(String(rawDashboardEnabled).toLowerCase().trim());
 
   return {
-    PORT: parseInt(process.env.PORT || '3000', 10),
+    PORT: port,
     HOST: process.env.HOST || '0.0.0.0',
-    NODE_ENV: process.env.NODE_ENV || 'development',
-    DATABASE_PATH: process.env.DATABASE_PATH || './storage/push_server.db',
+    NODE_ENV: process.env.NODE_ENV || 'production',
+    DATABASE_PATH: process.env.DATABASE_PATH || './storage/push_server.json',
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || '',
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
     VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
