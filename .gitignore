@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json (optional, remove if lockfile is desired in git)
 
 # Environment variables & secrets
 .env
@@ -9,7 +8,8 @@ package-lock.json (optional, remove if lockfile is desired in git)
 .env.production
 .env.staging
 
-# SQLite Databases & Storage
+# Databases & Local Storage Files
+storage/*.json
 storage/*.db
 storage/*.db-journal
 storage/*.db-wal
