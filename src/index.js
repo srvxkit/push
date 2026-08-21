@@ -56,12 +56,19 @@ function main() {
   // Server
   const server = createServer(router);
 
-  server.listen(env.PORT, env.HOST, () => {
-    console.log(`[Notification Server] Server running on http://${env.HOST}:${env.PORT}`);
-    if (env.DASHBOARD_ENABLED) {
-      console.log(`[Notification Server] Dashboard UI enabled on http://${env.HOST}:${env.PORT}${env.DASHBOARD_PATH}`);
-    }
-  });
+  // cPanel Passenger socket vs Standard TCP port listener
+  if (typeof env.PORT === 'string' && (env.PORT === 'passenger' || env.PORT.startsWith('/') || env.PORT.startsWith('\\\\'))) {
+    server.listen(env.PORT, () => {
+      console.log(`[Notification Server] Server running on cPanel Passenger socket: ${env.PORT}`);
+    });
+  } else {
+    server.listen(env.PORT, env.HOST, () => {
+      console.log(`[Notification Server] Server running on http://${env.HOST}:${env.PORT}`);
+      if (env.DASHBOARD_ENABLED) {
+        console.log(`[Notification Server] Dashboard UI enabled on http://${env.HOST}:${env.PORT}${env.DASHBOARD_PATH}`);
+      }
+    });
+  }
 
   const shutdown = () => {
     console.log('[Notification Server] Shutting down HTTP server...');

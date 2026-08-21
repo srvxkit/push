@@ -15,13 +15,15 @@ The server receives notification requests from application servers (such as `api
 - **Web Push Service Boundary**: Isolated `WebPushService` handles all VAPID encryption and browser push service communication.
 - **Automatic Subscription Cleanup**: Push errors indicating expired or invalid subscriptions (HTTP status `404`/`410`) automatically deactivate the subscription record.
 - **Background Delivery Worker**: Dedicated worker process claims pending delivery jobs, executes retries with backoff, and guarantees fault isolation.
-- **Built-In Telemetry Dashboard UI**: Optional, clean dashboard UI displaying live server telemetry, active subscriptions, presence counts, and delivery metrics. Includes vector SVG icons without emojis.
+- **cPanel & Phusion Passenger Support**: Out-of-the-box support for cPanel Node.js Selector and Passenger unix socket listeners.
 
 ---
 
 ## Directory Structure
 
 ```text
+app.js                    # Root entry point for cPanel Node.js Selector & Passenger
+
 src/
 ├── auth/                 # Application Bearer token authentication & hashing
 ├── config/               # Environment loader (dotenv)
@@ -69,7 +71,7 @@ Copy `.env.example` to `.env` and configure your settings:
 ```ini
 PORT=3000
 HOST=0.0.0.0
-NODE_ENV=development
+NODE_ENV=production
 DATABASE_PATH=./storage/push_server.db
 
 # Web Push VAPID Configuration
@@ -89,18 +91,24 @@ DASHBOARD_PATH=/dashboard
 
 ---
 
-## Telemetry Dashboard UI
+## cPanel Deployment Guide
 
-When `DASHBOARD_ENABLED=true` is set in your `.env` file, the Notification Server serves a live monitoring dashboard at the configured path (default: `/dashboard`).
+To deploy on cPanel via **Node.js Selector** (Phusion Passenger):
 
-- **Dashboard Path**: `http://localhost:3000/dashboard`
-- **JSON Telemetry API**: `http://localhost:3000/v1/stats`
-
-### Features:
-- Real-time server telemetry displaying total applications, active subscriptions, active presence sessions, and delivery counts (Sent, Pending, Processing, Failed, Expired).
-- Clean, professional design with **SVG vector icons** (no emojis).
-- Live telemetry table displaying recent delivery jobs with status badges and auto-refresh every 5 seconds.
-- Disabled by default if `DASHBOARD_ENABLED` is missing or set to `false`.
+1. **Upload Repository**: Upload or clone the repository to your cPanel directory (e.g. `/home/username/push-server`).
+2. **Create Node.js Application in cPanel**:
+   - Go to **cPanel** -> **Setup Node.js App**.
+   - **Node.js Version**: Select Node `20.x` or higher.
+   - **Application Mode**: Select `Production`.
+   - **Application Root**: `push-server` (or path where code is uploaded).
+   - **Application URL**: Select your domain or subdomain (e.g. `push.yourdomain.com`).
+   - **Application Startup File**: Enter `app.js`.
+3. **Run NPM Install**:
+   - In cPanel Node.js App manager, click **Run NPM Install** (or run `npm install` via SSH/Terminal).
+4. **Environment File**:
+   - Create your `.env` file in the application root folder with your VAPID keys.
+5. **Restart Application**:
+   - Click **Restart Application** in cPanel.
 
 ---
 
