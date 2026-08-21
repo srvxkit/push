@@ -39,5 +39,6 @@ function parseJsonBody(req, maxSizeBytes = 1048576) {
 }
 
 module.exports = {
-  parseJsonBody
+  parseJsonBody,
+  readJsonBody: parseJsonBody
 };

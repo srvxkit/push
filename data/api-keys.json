@@ -1,0 +1,29 @@
+[
+  {
+    "id": "app_b17ffe82cf51d702",
+    "name": "CodeBlaze",
+    "keyHash": "b6e6861c4d726555b3bcfec03c690c09e97a5cd75be6501546178986e87b595f",
+    "owner": "CodeBlaze",
+    "scopes": [],
+    "active": true,
+    "createdAt": "2026-08-21T20:03:17.575Z"
+  },
+  {
+    "id": "app_7525b45fc20ff902",
+    "name": "Dashboard Test App",
+    "keyHash": "7677ba778916335484f496ced533c932a5cf9ccc1153b9ac6a1b5430c3a0f386",
+    "owner": "Dashboard Test App",
+    "scopes": [],
+    "active": true,
+    "createdAt": "2026-08-21T21:22:42.416Z"
+  },
+  {
+    "id": "app_f55e7688027c83de",
+    "name": "CODEBLAZE_API_CHANNEL",
+    "keyHash": "499e5d1e9e7fd92351aca5bcd8b7eca5b42f98d1d8a43144ad3b8d5b25323d9d",
+    "owner": "CODEBLAZE_API_CHANNEL",
+    "scopes": [],
+    "active": true,
+    "createdAt": "2026-08-21T21:24:04.981Z"
+  }
+]

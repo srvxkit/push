@@ -2,14 +2,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 class JsonDatabase {
-  constructor(filePath = './storage/push_server.json') {
+  constructor(filePath = './storage/data.json') {
     this.isMemory = filePath === ':memory:';
-    this.filePath = this.isMemory ? null : path.resolve(process.cwd(), filePath.replace(/\.[^/.]+$/, '') + '.json');
+    this.filePath = this.isMemory ? null : path.resolve(process.cwd(), filePath.endsWith('.json') ? filePath : filePath.replace(/\.[^/.]+$/, '') + '.json');
     this.data = {
       applications: [],
-      subscriptions: [],
-      presence: [],
-      notification_deliveries: []
+      notifications: []
     };
 
     this._load();
@@ -30,9 +28,7 @@ class JsonDatabase {
           const parsed = JSON.parse(raw);
           this.data = {
             applications: Array.isArray(parsed.applications) ? parsed.applications : [],
-            subscriptions: Array.isArray(parsed.subscriptions) ? parsed.subscriptions : [],
-            presence: Array.isArray(parsed.presence) ? parsed.presence : [],
-            notification_deliveries: Array.isArray(parsed.notification_deliveries) ? parsed.notification_deliveries : []
+            notifications: Array.isArray(parsed.notifications) ? parsed.notifications : []
           };
         }
       } else {
@@ -73,7 +69,7 @@ class JsonDatabase {
   }
 }
 
-function createDatabase(dbPath = './storage/push_server.json') {
+function createDatabase(dbPath = './storage/data.json') {
   return new JsonDatabase(dbPath);
 }
 
