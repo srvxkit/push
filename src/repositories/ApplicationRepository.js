@@ -3,41 +3,61 @@ class ApplicationRepository {
     this.db = db;
   }
 
+  _collection() {
+    return this.db.getCollection ? this.db.getCollection('applications') : [];
+  }
+
   create({ id, name, apiKeyHash, status = 'active' }) {
     const now = new Date().toISOString();
-    const stmt = this.db.prepare(`
-      INSERT INTO applications (id, name, api_key_hash, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(id, name, apiKeyHash, status, now, now);
-    return this.findById(id);
+    const app = {
+      id,
+      name,
+      api_key_hash: apiKeyHash,
+      status,
+      created_at: now,
+      updated_at: now
+    };
+
+    const apps = this._collection();
+    const index = apps.findIndex(a => a.id === id);
+    if (index >= 0) {
+      apps[index] = app;
+    } else {
+      apps.push(app);
+    }
+
+    if (this.db.save) this.db.save();
+    return app;
   }
 
   findById(id) {
-    const stmt = this.db.prepare('SELECT * FROM applications WHERE id = ?');
-    return stmt.get(id) || null;
+    const app = this._collection().find(a => a.id === id);
+    return app || null;
   }
 
   findByName(name) {
-    const stmt = this.db.prepare('SELECT * FROM applications WHERE name = ?');
-    return stmt.get(name) || null;
+    const app = this._collection().find(a => a.name === name);
+    return app || null;
   }
 
   findByApiKeyHash(apiKeyHash) {
-    const stmt = this.db.prepare("SELECT * FROM applications WHERE api_key_hash = ? AND status = 'active'");
-    return stmt.get(apiKeyHash) || null;
+    const app = this._collection().find(a => a.api_key_hash === apiKeyHash && a.status === 'active');
+    return app || null;
   }
 
   findAll() {
-    const stmt = this.db.prepare('SELECT id, name, status, created_at, updated_at FROM applications ORDER BY created_at DESC');
-    return stmt.all();
+    return [...this._collection()].sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 
   updateApiKeyHash(id, apiKeyHash) {
-    const now = new Date().toISOString();
-    const stmt = this.db.prepare('UPDATE applications SET api_key_hash = ?, updated_at = ? WHERE id = ?');
-    stmt.run(apiKeyHash, now, id);
-    return this.findById(id);
+    const app = this.findById(id);
+    if (app) {
+      app.api_key_hash = apiKeyHash;
+      app.updated_at = new Date().toISOString();
+      if (this.db.save) this.db.save();
+      return app;
+    }
+    return null;
   }
 }
 

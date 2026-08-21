@@ -3,91 +3,125 @@ class SubscriptionRepository {
     this.db = db;
   }
 
+  _collection() {
+    return this.db.getCollection ? this.db.getCollection('subscriptions') : [];
+  }
+
+  _appsCollection() {
+    return this.db.getCollection ? this.db.getCollection('applications') : [];
+  }
+
   upsert({ id, applicationId, ownerType, ownerId, deviceId, endpoint, p256dh, auth, status = 'active' }) {
     const now = new Date().toISOString();
-    const stmt = this.db.prepare(`
-      INSERT INTO subscriptions (id, application_id, owner_type, owner_id, device_id, endpoint, p256dh, auth, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(application_id, endpoint) DO UPDATE SET
-        owner_type = excluded.owner_type,
-        owner_id = excluded.owner_id,
-        device_id = excluded.device_id,
-        p256dh = excluded.p256dh,
-        auth = excluded.auth,
-        status = excluded.status,
-        updated_at = excluded.updated_at
-    `);
+    const subs = this._collection();
 
-    stmt.run(id, applicationId, ownerType, String(ownerId), deviceId || null, endpoint, p256dh, auth, status, now, now);
-    return this.findByEndpoint(applicationId, endpoint);
+    const existing = subs.find(s => s.application_id === applicationId && s.endpoint === endpoint);
+
+    if (existing) {
+      existing.owner_type = ownerType;
+      existing.owner_id = String(ownerId);
+      existing.device_id = deviceId || null;
+      existing.p256dh = p256dh;
+      existing.auth = auth;
+      existing.status = status;
+      existing.updated_at = now;
+      if (this.db.save) this.db.save();
+      return existing;
+    } else {
+      const sub = {
+        id,
+        application_id: applicationId,
+        owner_type: ownerType,
+        owner_id: String(ownerId),
+        device_id: deviceId || null,
+        endpoint,
+        p256dh,
+        auth,
+        status,
+        created_at: now,
+        updated_at: now
+      };
+      subs.push(sub);
+      if (this.db.save) this.db.save();
+      return sub;
+    }
   }
 
   findById(applicationId, id) {
-    const stmt = this.db.prepare('SELECT * FROM subscriptions WHERE application_id = ? AND id = ?');
-    return stmt.get(applicationId, id) || null;
+    const sub = this._collection().find(s => s.application_id === applicationId && s.id === id);
+    return sub || null;
   }
 
   findByEndpoint(applicationId, endpoint) {
-    const stmt = this.db.prepare('SELECT * FROM subscriptions WHERE application_id = ? AND endpoint = ?');
-    return stmt.get(applicationId, endpoint) || null;
+    const sub = this._collection().find(s => s.application_id === applicationId && s.endpoint === endpoint);
+    return sub || null;
   }
 
   findActiveByOwner(applicationId, ownerType, ownerId) {
-    const stmt = this.db.prepare(`
-      SELECT * FROM subscriptions
-      WHERE application_id = ? AND owner_type = ? AND owner_id = ? AND status = 'active'
-    `);
-    return stmt.all(applicationId, ownerType, String(ownerId));
+    const ownerIdStr = String(ownerId);
+    return this._collection().filter(s =>
+      s.application_id === applicationId &&
+      s.owner_type === ownerType &&
+      String(s.owner_id) === ownerIdStr &&
+      s.status === 'active'
+    );
   }
 
   findAllByApplication(applicationId, { ownerType = null, ownerId = null } = {}) {
-    let sql = 'SELECT * FROM subscriptions WHERE application_id = ?';
-    const params = [applicationId];
+    const ownerIdStr = ownerId ? String(ownerId) : null;
+    let list = this._collection().filter(s => s.application_id === applicationId);
 
     if (ownerType) {
-      sql += ' AND owner_type = ?';
-      params.push(ownerType);
+      list = list.filter(s => s.owner_type === ownerType);
     }
-    if (ownerId) {
-      sql += ' AND owner_id = ?';
-      params.push(String(ownerId));
+    if (ownerIdStr) {
+      list = list.filter(s => String(s.owner_id) === ownerIdStr);
     }
 
-    sql += ' ORDER BY created_at DESC';
-    const stmt = this.db.prepare(sql);
-    return stmt.all(...params);
+    return list.sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 
   findAll() {
-    const stmt = this.db.prepare(`
-      SELECT s.*, a.name as application_name
-      FROM subscriptions s
-      LEFT JOIN applications a ON s.application_id = a.id
-      ORDER BY s.created_at DESC
-    `);
-    return stmt.all();
+    const apps = this._appsCollection();
+    return this._collection().map(s => {
+      const app = apps.find(a => a.id === s.application_id);
+      return {
+        ...s,
+        application_name: app ? app.name : s.application_id
+      };
+    }).sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 
   findActiveByOwners(applicationId, ownerType, ownerIds) {
     if (!ownerIds || ownerIds.length === 0) return [];
-    const placeholders = ownerIds.map(() => '?').join(',');
-    const stmt = this.db.prepare(`
-      SELECT * FROM subscriptions
-      WHERE application_id = ? AND owner_type = ? AND owner_id IN (${placeholders}) AND status = 'active'
-    `);
-    return stmt.all(applicationId, ownerType, ...ownerIds.map(String));
+    const ownerIdStrs = ownerIds.map(String);
+    return this._collection().filter(s =>
+      s.application_id === applicationId &&
+      s.owner_type === ownerType &&
+      ownerIdStrs.includes(String(s.owner_id)) &&
+      s.status === 'active'
+    );
   }
 
   updateStatus(id, status) {
     const now = new Date().toISOString();
-    const stmt = this.db.prepare('UPDATE subscriptions SET status = ?, updated_at = ? WHERE id = ?');
-    stmt.run(status, now, id);
+    const sub = this._collection().find(s => s.id === id);
+    if (sub) {
+      sub.status = status;
+      sub.updated_at = now;
+      if (this.db.save) this.db.save();
+    }
   }
 
   delete(applicationId, id) {
-    const stmt = this.db.prepare('DELETE FROM subscriptions WHERE application_id = ? AND id = ?');
-    const result = stmt.run(applicationId, id);
-    return result.changes > 0;
+    const subs = this._collection();
+    const index = subs.findIndex(s => s.application_id === applicationId && s.id === id);
+    if (index >= 0) {
+      subs.splice(index, 1);
+      if (this.db.save) this.db.save();
+      return true;
+    }
+    return false;
   }
 }
 

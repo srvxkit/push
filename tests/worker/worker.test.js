@@ -1,20 +1,22 @@
 const assert = require('node:assert');
 const { createDatabase } = require('../../src/db/database');
+const ApplicationRepository = require('../../src/repositories/ApplicationRepository');
 const DeliveryRepository = require('../../src/repositories/DeliveryRepository');
 const SubscriptionRepository = require('../../src/repositories/SubscriptionRepository');
 const NotificationWorker = require('../../worker/notification-worker');
 
 async function testWorker() {
   const db = createDatabase(':memory:');
+  const appRepo = new ApplicationRepository(db);
   const deliveryRepo = new DeliveryRepository(db);
   const subRepo = new SubscriptionRepository(db);
 
   // Seed application & subscription
-  const now = new Date().toISOString();
-  db.prepare(`
-    INSERT INTO applications (id, name, api_key_hash, status, created_at, updated_at)
-    VALUES ('app_w', 'Worker App', 'hash_w', 'active', ?, ?)
-  `).run(now, now);
+  appRepo.create({
+    id: 'app_w',
+    name: 'Worker App',
+    apiKeyHash: 'hash_w'
+  });
 
   const subActive = subRepo.upsert({
     id: 'sub_active',

@@ -10,16 +10,13 @@ const NotificationService = require('../../src/notifications/NotificationService
 const path = require('node:path');
 const fs = require('node:fs');
 
-// We directly require database.js fallback adapter logic
 const { createDatabase } = require('../../src/db/database');
 
-function testFallbackAdapter() {
-  const tmpPath = path.resolve(__dirname, 'test_fallback_store.json');
+function testJsonDatabase() {
+  const tmpPath = path.resolve(__dirname, 'test_json_store.json');
   if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
 
-  // Force fallback testing by stubbing require for node:sqlite or testing fallback store directly
-  const dbPath = path.resolve(__dirname, 'test_fallback_store.db');
-  const db = createDatabase(':memory:');
+  const db = createDatabase(tmpPath);
 
   const appRepo = new ApplicationRepository(db);
   const subRepo = new SubscriptionRepository(db);
@@ -37,30 +34,30 @@ function testFallbackAdapter() {
 
   // Test App Registration
   const app = authService.registerApplication({
-    id: 'app_fallback_1',
+    id: 'app_json_1',
     name: 'CodeBlaze',
-    apiKey: 'secret_fallback_key'
+    apiKey: 'secret_json_key'
   });
 
   assert.ok(app);
-  assert.strictEqual(app.id, 'app_fallback_1');
+  assert.strictEqual(app.id, 'app_json_1');
   assert.strictEqual(app.name, 'CodeBlaze');
 
   // Test Subscription Registration
   const sub = subService.registerSubscription(app.id, {
     owner_type: 'user',
-    owner_id: 'user_fallback',
-    endpoint: 'https://push.example.com/fallback_endpoint',
+    owner_id: 'user_json',
+    endpoint: 'https://push.example.com/json_endpoint',
     keys: { p256dh: 'p256', auth: 'auth' }
   });
 
   assert.ok(sub);
-  assert.strictEqual(sub.owner_id, 'user_fallback');
+  assert.strictEqual(sub.owner_id, 'user_json');
 
   // Test Admin Eligibility & Notification
   const res = notificationService.processNotificationRequest(app.id, {
-    target: { type: 'user', id: 'user_fallback' },
-    notification: { title: 'Fallback Test' }
+    target: { type: 'user', id: 'user_json' },
+    notification: { title: 'JSON Database Test' }
   });
 
   assert.strictEqual(res.accepted, 1);
@@ -70,9 +67,15 @@ function testFallbackAdapter() {
   assert.ok(stats.applications >= 1);
 
   db.close();
+
+  // Verify file was written to disk
+  assert.strictEqual(fs.existsSync(tmpPath), true);
+  const content = JSON.parse(fs.readFileSync(tmpPath, 'utf8'));
+  assert.ok(content.applications.length > 0);
+
   if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
 
-  console.log('✔ Node 20 fallback database tests passed');
+  console.log('✔ Pure JSON database file saving tests passed');
 }
 
-module.exports = testFallbackAdapter;
+module.exports = testJsonDatabase;

@@ -3,62 +3,98 @@ class PresenceRepository {
     this.db = db;
   }
 
+  _collection() {
+    return this.db.getCollection ? this.db.getCollection('presence') : [];
+  }
+
   upsert({ id, applicationId, subscriptionId = null, ownerType, ownerId, sessionId, ttlSeconds = 300 }) {
     const now = new Date();
     const lastSeenAt = now.toISOString();
     const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
+    const presences = this._collection();
 
-    const stmt = this.db.prepare(`
-      INSERT INTO presence (id, application_id, subscription_id, owner_type, owner_id, session_id, last_seen_at, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(application_id, session_id) DO UPDATE SET
-        subscription_id = COALESCE(excluded.subscription_id, presence.subscription_id),
-        owner_type = excluded.owner_type,
-        owner_id = excluded.owner_id,
-        last_seen_at = excluded.last_seen_at,
-        expires_at = excluded.expires_at
-    `);
+    const existing = presences.find(p => p.application_id === applicationId && p.session_id === sessionId);
 
-    stmt.run(id, applicationId, subscriptionId, ownerType, String(ownerId), sessionId, lastSeenAt, expiresAt);
-    return this.findBySessionId(applicationId, sessionId);
+    if (existing) {
+      existing.subscription_id = subscriptionId || existing.subscription_id;
+      existing.owner_type = ownerType;
+      existing.owner_id = String(ownerId);
+      existing.last_seen_at = lastSeenAt;
+      existing.expires_at = expiresAt;
+      if (this.db.save) this.db.save();
+      return existing;
+    } else {
+      const prs = {
+        id,
+        application_id: applicationId,
+        subscription_id: subscriptionId,
+        owner_type: ownerType,
+        owner_id: String(ownerId),
+        session_id: sessionId,
+        last_seen_at: lastSeenAt,
+        expires_at: expiresAt
+      };
+      presences.push(prs);
+      if (this.db.save) this.db.save();
+      return prs;
+    }
   }
 
   findBySessionId(applicationId, sessionId) {
-    const stmt = this.db.prepare('SELECT * FROM presence WHERE application_id = ? AND session_id = ?');
-    return stmt.get(applicationId, sessionId) || null;
+    const prs = this._collection().find(p => p.application_id === applicationId && p.session_id === sessionId);
+    return prs || null;
   }
 
   findActiveSessionsForOwner(applicationId, ownerType, ownerId) {
-    const now = new Date().toISOString();
-    const stmt = this.db.prepare(`
-      SELECT * FROM presence
-      WHERE application_id = ? AND owner_type = ? AND owner_id = ? AND expires_at > ?
-    `);
-    return stmt.all(applicationId, ownerType, String(ownerId), now);
+    const nowStr = new Date().toISOString();
+    const ownerIdStr = String(ownerId);
+    return this._collection().filter(p =>
+      p.application_id === applicationId &&
+      p.owner_type === ownerType &&
+      String(p.owner_id) === ownerIdStr &&
+      p.expires_at > nowStr
+    );
   }
 
   hasActivePresenceForSubscription(applicationId, subscriptionId, ownerType, ownerId) {
-    const now = new Date().toISOString();
-    // Check if there is an active session linked to this specific subscription or for this owner in general
-    const stmt = this.db.prepare(`
-      SELECT COUNT(*) as count FROM presence
-      WHERE application_id = ? AND owner_type = ? AND owner_id = ? AND expires_at > ?
-      AND (subscription_id = ? OR subscription_id IS NULL)
-    `);
-    const row = stmt.get(applicationId, ownerType, String(ownerId), now, subscriptionId);
-    return row.count > 0;
+    const nowStr = new Date().toISOString();
+    const ownerIdStr = String(ownerId);
+
+    const matches = this._collection().filter(p =>
+      p.application_id === applicationId &&
+      p.owner_type === ownerType &&
+      String(p.owner_id) === ownerIdStr &&
+      p.expires_at > nowStr &&
+      (p.subscription_id === subscriptionId || p.subscription_id === null || p.subscription_id === undefined)
+    );
+
+    return matches.length > 0;
   }
 
   deleteSession(applicationId, sessionId) {
-    const stmt = this.db.prepare('DELETE FROM presence WHERE application_id = ? AND session_id = ?');
-    const result = stmt.run(applicationId, sessionId);
-    return result.changes > 0;
+    const presences = this._collection();
+    const index = presences.findIndex(p => p.application_id === applicationId && p.session_id === sessionId);
+    if (index >= 0) {
+      presences.splice(index, 1);
+      if (this.db.save) this.db.save();
+      return true;
+    }
+    return false;
   }
 
   deleteBySubscription(applicationId, subscriptionId) {
-    const stmt = this.db.prepare('DELETE FROM presence WHERE application_id = ? AND subscription_id = ?');
-    const result = stmt.run(applicationId, subscriptionId);
-    return result.changes > 0;
+    const presences = this._collection();
+    let count = 0;
+    for (let i = presences.length - 1; i >= 0; i--) {
+      if (presences[i].application_id === applicationId && presences[i].subscription_id === subscriptionId) {
+        presences.splice(i, 1);
+        count++;
+      }
+    }
+    if (count > 0 && this.db.save) {
+      this.db.save();
+    }
+    return count > 0;
   }
 }
 
